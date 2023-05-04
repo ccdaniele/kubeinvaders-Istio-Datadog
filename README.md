@@ -1,32 +1,82 @@
 # kubeinvaders-Istio-Datadog
 
-Installing kubeinvaders
+Deploying kubeinvaders-repo: https://github.com/lucky-sideburn/KubeInvaders#Installation. Setting istio-ingress and monitoring the app with Datadog
 
+## Installing kubeinvaders with helm: https://github.com/lucky-sideburn/KubeInvaders#Installation 
+
+Installing helm repo:
+
+```
 helm repo add kubeinvaders https://lucky-sideburn.github.io/helm-charts/
 helm repo update
+```
+Creating namespace for kubeinvaders and deploying kubeinvaders
 
-kubectl create namespace kubeinvaders
-
+```
 helm install kubeinvaders -f invaders_values.yaml --set-string config.target_namespace="kube-system" \
--n kubeinvaders kubeinvaders/kubeinvaders --set ingress.enabled=true --set ingress.hostName=kubeinvaders.io --set deployment.image.tag=v1.9.6
+-n kubeinvaders kubeinvaders/kubeinvaders
+```
 
-helm upgrade kubeinvaders -f invaders_values.yaml -n kubeinvaders kubeinvaders/kubeinvaders --set ingress.enabled=true --set ingress.hostName=kubeinvaders.io --set deployment.image.tag=v1.9.6
+## Deploying istio with helm: https://istio.io/latest/docs/setup/install/helm/
 
-1. Installing istio with helm: https://istio.io/latest/docs/setup/install/helm/ 
+Installing istio repo: 
 
+```
 helm repo add istio.io https://storage.googleapis.com/istio-release/releases/1.1.7/charts/ 
+```
+Creating namespace and deploying istio-base
 
-helm repo list 
-
+```
 helm install istio-base istio/base -n istio-system --create-namespace 
+```
 
+Deploying istiod:
+```
 helm install istiod istio/istiod -n istio-system --wait
+```
+Confirming istio deployments: 
 
+```
 kubectl get deployments -n istio-system --output wide 
+```
 
-3.  helm install istio-ingress istio/gateway -n istio-ingress --create-namespace --wait 
+## Deploying Istio-Ingress
 
+Creating namespace and deploying Istio-ingress:
+
+```
+helm install istio-ingress istio/gateway -n istio-ingress --create-namespace --wait 
+```
+Enabling istio injection in kubeinvaders app
 kubectl label namespace kubeinvaders istio-injection=enabled 
 
+## Deploying Datadog with helm
 
-1. helm install datadog-v1 -f dd_values.yaml  --set datadog.apiKey=$DD_API_KEY datadog/datadog --set targetSystem=linux -n monitoring --create-namespace --wait
+helm install datadog-v1 -f dd_values.yaml  --set datadog.apiKey=$DD_API_KEY datadog/datadog --set targetSystem=linux -n monitoring --create-namespace --wait
+
+## Including annotations in Istio deployment to enable Istio-Datadog integration: 
+
+Identify istio pod example: istio-system istiod-5987b4bb4f-p8rwh
+
+Run the edit command to update the annotations in the pod
+
+```
+kubectl edit pod istiod-5987b4bb4f-p8rwh -n istio-system
+```
+
+Then add the datadog autodiscovery annotations below: 
+
+https://docs.datadoghq.com/integrations/istio/#configuration
+
+```
+ad.datadoghq.com/discovery.check_names: '["istio"]'
+ad.datadoghq.com/discovery.init_configs: '[{}]'
+ad.datadoghq.com/discovery.instances: |
+     [
+       {
+         "istiod_endpoint": "http://%%host%%:15014/metrics",
+         "use_openmetrics": "true"
+       }
+     ]     
+```
+
